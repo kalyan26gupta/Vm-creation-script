@@ -1,29 +1,52 @@
-# Set the correct template name and path
-$templateName = "Windows-10-x64"
+# Variables - based on your file structure
+$templateName = "Windows 10 x64"
 $templatePath = "D:\VMware"
-$templateVMX = "$templatePath\$templateName.vmx"
-
-# Set your project folder for new VMs
 $projectName = "DomainRG"
 $baseLocation = "D:\VMware"
 $projectPath = "$baseLocation\$projectName"
 
-# Create the project folder if it doesn't exist
+# Create project folder if it doesn't exist
 if (-not (Test-Path $projectPath)) {
-    New-Item -Path $projectPath -ItemType Directory
+    New-Item -Path $projectPath -ItemType Directory -Force
 }
+
+# File extensions to copy (exclude .lck files and folders)
+$includeFiles = @("*.vmx", "*.vmdk", "*.nvram", "*.vmsd", "*.vmxf", "*.vmem", "*.vmss", "*.vmsn", "*.log", "*.scoreboard")
 
 for ($i=1; $i -le 2; $i++) {
     $vmName = "VM$i"
     $vmFolder = "$projectPath\$vmName"
-    New-Item -Path $vmFolder -ItemType Directory
 
-    # Copy all files needed for the VM (all files with the template name prefix)
-    Get-ChildItem -Path $templatePath -Filter "$templateName*" | 
-        Copy-Item -Destination $vmFolder
+    # Remove existing VM folder if it exists (clean slate)
+    if (Test-Path $vmFolder) {
+        Write-Host "Removing existing folder: $vmFolder"
+        Remove-Item -Path $vmFolder -Recurse -Force
+    }
+    
+    # Create new VM folder
+    New-Item -Path $vmFolder -ItemType Directory -Force
 
-    $vmxDest = "$vmFolder\$templateName.vmx"
+    # Copy template files (excluding .lck files)
+    Write-Host "Copying template files to: $vmFolder"
+    
+    # Copy each file type individually to avoid lock files
+    foreach ($filePattern in $includeFiles) {
+        $filesToCopy = Get-ChildItem -Path $templatePath -Filter "$templateName*" | Where-Object { 
+            $_.Name -like $filePattern.Replace("*", "$templateName*") -and 
+            $_.Name -notlike "*.lck*" 
+        }
+        
+        foreach ($file in $filesToCopy) {
+            Copy-Item -Path $file.FullName -Destination $vmFolder -Force
+        }
+    }
 
-    # Start the new VM (no register needed)
-    & "C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe" start $vmxDest
+    # Verify VMX file exists before starting
+    $vmxFile = "$vmFolder\$templateName.vmx"
+    if (Test-Path $vmxFile) {
+        Write-Host "Starting VM: $vmName"
+        & "C:\Program Files (x86)\VMware\VMware Workstation\vmrun.exe" start $vmxFile
+    } else {
+        Write-Error "VMX file not found: $vmxFile"
+    }
 }
