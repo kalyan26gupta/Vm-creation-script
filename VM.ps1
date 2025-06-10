@@ -1,5 +1,5 @@
 # Set the correct template name and path
-$templateName = "Windows 10 x64"
+$templateName = "Windows-10-x64"
 $templatePath = "D:\VMware"
 $templateVMX = "$templatePath\$templateName.vmx"
 
